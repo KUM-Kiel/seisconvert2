@@ -18,4 +18,5 @@ MRuby::Build.new do |conf|
   conf.gem 'mruby-bin-makeseed'
   conf.gem 'mruby-mkdir'
   conf.gem github: 'iij/mruby-io'
+  conf.gem github: 'mattn/mruby-onig-regexp'
 end

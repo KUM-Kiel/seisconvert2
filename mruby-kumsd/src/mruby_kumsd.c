@@ -213,7 +213,7 @@ start:
             mrb_class_get_under(mrb, C_KUM_SD, "Temperature"),
             1, a);
         case 7: /* Lost Frames */
-          a[0] = mrb_fixnum_value(ld_u32_be(frame + 4));
+          a[0] = mrb_fixnum_value(ld_u32_be(frame + 10));
           return mrb_obj_new(mrb,
             mrb_class_get_under(mrb, C_KUM_SD, "LostFrames"),
             1, a);

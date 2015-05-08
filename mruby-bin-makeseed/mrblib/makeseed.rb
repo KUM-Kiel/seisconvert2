@@ -1,6 +1,8 @@
-module Makeseed
+class Makeseed
   class Channel
     B1k = Seed::Blockette1000.new.to_s
+
+    attr_accessor :time
 
     def initialize name, rate, file, skew = nil
       @name = name
@@ -37,8 +39,12 @@ module Makeseed
       end
     end
 
-    def time t
-      @time = t
+    def lost n
+      if @record
+        @file.write @record.to_s
+      end
+      @record = nil
+      @time += n * @sample_time
     end
 
     def done
@@ -48,16 +54,51 @@ module Makeseed
     end
   end
 
-  def self.print_percent p, n = true
+  def print_percent p, n = true
     a = (p / 5.0).round
     print "[#{'#' * a}#{' ' * (20 - a)}] #{'%3d' % p} %#{n ? "\n" : "\r"}"
   end
 
-  def self.run file
+  def filename template
+    template.gsub(/%./) do |x|
+      if x == '%T'
+        t = @sd.start_time
+        '%04d%02d%02dT%02d%02d%02dZ' % [t.year, t.month, t.day, t.hour, t.min, t.sec]
+      elsif x == '%R'
+        @sd.recorder_id
+      elsif x == '%C'
+        @channel_name
+      elsif x == '%%'
+        '%'
+      else
+        raise "Invalid replacement #{x}"
+      end
+    end
+  end
+
+  def time_format t
+    '%04d-%02d-%02d %02d:%02d:%02d UTC' % [t.year, t.month, t.day, t.hour, t.min, t.sec]
+  end
+
+  def time_format_usec t
+    '%04d-%02d-%02d %02d:%02d:%02d.%06d UTC' % [t.year, t.month, t.day, t.hour, t.min, t.sec, t.usec]
+  end
+
+  def log s
+    puts(s)
+    @logfile.puts(s) if @logfile
+  end
+
+  def run file, options = {}
     begin
       if file
         sd = KumSd::File.new file
+        @sd = sd
         now = Time.now
+
+        logfilename = filename '%R/%T/events.txt'
+        mkdir_p File.dirname logfilename
+        @logfile = File.open(logfilename, "wb")
 
         [
           "Processing '#{file}'",
@@ -69,7 +110,7 @@ module Makeseed
           "  Start Address: #{sd.start_address}",
           "    End Address: #{sd.end_address}",
           "============================================="
-        ].each{|s| puts s}
+        ].each{|s| log s}
         [
           "RTC Report",
           "=============================================",
@@ -87,26 +128,48 @@ module Makeseed
           "       End Time: #{sd.end_time}",
           "     End Offset: #{'%+d µs' % [sd.skew.correction(sd.end_time) * 1_000_000]}",
           "============================================="
-        ].each{|s| puts s} if sd.skew
+        ].each{|s| log s} if sd.skew
 
-        #p sd
-        t = sd.start_time
-        folder = "%s/%04d.%02d.%02d.%02d.%02d.%02d" % [sd.recorder_id, t.year, t.month, t.day, t.hour, t.min, t.sec]
-        mkdir_p folder
         channels = sd.channels.map do |name|
-          c = Channel.new name, sd.sample_rate, File.open("#{folder}/#{name}.seed", "wb"), sd.skew
-          puts "Creating #{folder}/#{name}.seed"
+          @channel_name = name
+          fn = filename '%R/%T/%C.seed'
+          mkdir_p File.dirname fn
+          c = Channel.new name, sd.sample_rate, File.open(fn, "wb"), sd.skew
+          log "Creating #{fn}"
           c
         end
-        puts "============================================="
+        log "============================================="
+
+        edname = filename '%R/%T/engeneeringdata.csv'
+        mkdir_p File.dirname edname
+        ed = File.open(edname, "wb")
+        edata = {vbat: 0, humi: 0, temp: 0}
+        ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
+
+        [
+          "Creating #{edname}",
+          "============================================="
+        ].each{|s| log s}
+
         percent = 0
         print_percent 0, false
         sd.each_frame do |f|
           if f.is_a? KumSd::ControlFrame
             if f.is_a? KumSd::Timestamp
               channels.each do |c|
-                c.time f.time
+                c.time = f.time
               end
+            elsif f.is_a? KumSd::LostFrames
+              @logfile.puts "#{time_format_usec(channels[0].time)}: #{f.lost} lost frames."
+              channels.each do |c|
+                c.lost f.lost
+              end
+            elsif f.is_a? KumSd::VoltageHumidity
+              edata[:vbat] = f.voltage
+              edata[:humi] = f.humidity
+            elsif f.is_a? KumSd::Temperature
+              edata[:temp] = f.temperature
+              ed.puts "#{channels[0].time.to_i};#{edata[:vbat]};#{edata[:humi]};#{edata[:temp]}"
             end
           else
             (0...f.length).each do |i|
