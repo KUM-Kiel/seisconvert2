@@ -12,12 +12,14 @@ static int mkdir_p(const char *path)
   int o = 0;
   while ((x = index(path + o, '/'))) {
     o = x - path;
-    if (o > sizeof(p)) return -1;
-    memcpy(p, path, o);
-    p[o] = 0;
-    if (mkdir(p, 0755) < 0) {
-      if (errno != EEXIST)
-        return -1;
+    if (o > 0) {
+      if (o > sizeof(p)) return -1;
+      memcpy(p, path, o);
+      p[o] = 0;
+      if (mkdir(p, 0755) < 0) {
+        if (errno != EEXIST)
+          return -1;
+      }
     }
     o += 1;
   }
