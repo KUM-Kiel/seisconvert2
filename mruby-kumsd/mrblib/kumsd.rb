@@ -101,6 +101,10 @@ module KumSd
       self
     end
 
+    def process &block
+      @file.process(&block)
+    end
+
     def percent
       @file.percent
     end

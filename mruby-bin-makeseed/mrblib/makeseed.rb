@@ -105,7 +105,7 @@ class Makeseed
           "=============================================",
           "    Recorder ID: #{sd.recorder_id}",
           "         RTC ID: #{sd.rtc_id}",
-          "        Comment: '#{sd.comment}'",
+          "        Comment: #{sd.comment.inspect}",
           "=============================================",
           "  Start Address: #{sd.start_address}",
           "    End Address: #{sd.end_address}",
@@ -140,7 +140,7 @@ class Makeseed
         end
         log "============================================="
 
-        edname = filename '%R/%T/engeneeringdata.csv'
+        edname = filename '%R/%T/engineeringdata.csv'
         mkdir_p File.dirname edname
         ed = File.open(edname, "wb")
         edata = {vbat: 0, humi: 0, temp: 0}

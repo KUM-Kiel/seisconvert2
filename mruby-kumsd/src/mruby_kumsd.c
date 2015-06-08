@@ -5,6 +5,7 @@
 #include <mruby/data.h>
 #include <mruby/hash.h>
 #include <mruby/string.h>
+#include <sample_buffer.h>
 #include <stdio.h>
 #include "bcd.h"
 #include "kum_sd.h"
@@ -23,7 +24,7 @@ typedef struct {
   int channel_count;
   mrb_value base_time;
   mrb_int last_address;
-  size_t pos;
+  mrb_int pos;
 } kum_sd_file;
 
 static kum_sd_file *mrb_kum_sd_file_alloc(mrb_state *mrb)
@@ -169,7 +170,7 @@ static mrb_value mrb_kum_sd_file_goto_addr(mrb_state *mrb, mrb_value self)
   return self;
 }
 
-#define IO_ERROR(x) mrb_raise(mrb, E_RUNTIME_ERROR, "Could not read from the SD card (" x ")")
+#define IO_ERROR(x) mrb_raise(mrb, E_RUNTIME_ERROR, "Could not read from SD card" x)
 static mrb_value mrb_kum_sd_file_read_frame(mrb_state *mrb, mrb_value self)
 {
   char frame[4 * KUM_SD_MAX_CHANNEL_COUNT];
@@ -184,7 +185,7 @@ start:
       return mrb_obj_new(mrb,
         mrb_class_get_under(mrb, C_KUM_SD, "EndFrame"),
         0, a);
-    if (!fread(frame, 4, 1, file->f)) IO_ERROR();
+    if (!fread(frame, 4, 1, file->f)) IO_ERROR("");
     file->pos += 4;
     type = ld_i32_be(frame);
     if (type % 2) {
@@ -193,7 +194,7 @@ start:
         return mrb_obj_new(mrb,
           mrb_class_get_under(mrb, C_KUM_SD, "EndFrame"),
           0, a);
-      if (!fread(frame + 4, 12, 1, file->f)) IO_ERROR();
+      if (!fread(frame + 4, 12, 1, file->f)) IO_ERROR("");
       file->pos += 12;
       switch (type) {
         case 1: /* Timestamp */
@@ -247,7 +248,7 @@ start:
           mrb_class_get_under(mrb, C_KUM_SD, "EndFrame"),
           0, a);
       if (i) {
-        if (!fread(frame + 4, i, 1, file->f)) IO_ERROR();
+        if (!fread(frame + 4, i, 1, file->f)) IO_ERROR("");
         file->pos += i;
       }
       r = mrb_ary_new(mrb);
@@ -352,6 +353,175 @@ static mrb_value mrb_kum_sd_file_percent(mrb_state *mrb, mrb_value self)
   }
 }
 
+#define READ(n, o) do {\
+  if (file->pos + n > end_offset) goto end;\
+  if (!fread(buffer + (o), (n), 1, file->f)) IO_ERROR("");\
+  file->pos += (n);\
+} while (0)
+
+#define BUFFER_LEN 65536
+
+typedef struct {
+  mrb_state *mrb;
+  mrb_value block;
+  mrb_value sample_buffer;
+  mrb_sample_buffer *b;
+  mrb_int pos;
+} channel;
+
+static inline void channel_push(channel *c, mrb_sample s)
+{
+  MRB_SAMPLE_BUFFER_DATA(c->b)[c->pos] = s;
+  c->pos += 1;
+  if (c->pos == BUFFER_LEN) {
+    mrb_yield(c->mrb, c->block, c->sample_buffer);
+    c->pos = 0;
+  }
+}
+
+static inline void channel_flush(channel *c)
+{
+  int i;
+  if (c->pos > 0) {
+    i = mrb_gc_arena_save(c->mrb);
+    mrb_yield(c->mrb, c->block, mrb_sample_buffer_slice(c->mrb, c->sample_buffer, 0, c->pos));
+    c->pos = 0;
+    mrb_gc_arena_restore(c->mrb, i);
+  }
+}
+
+#define SCALE (1.0 / 2147483648.0)
+
+enum {
+  CHANNEL_TEMPERATURE = KUM_SD_MAX_CHANNEL_COUNT,
+  CHANNEL_HUMIDITY,
+  CHANNEL_VOLTAGE,
+  CHANNEL_RTC_VOLTAGE,
+
+  N_CHANNELS
+};
+
+static mrb_value mrb_kum_sd_file_process(mrb_state *mrb, mrb_value self)
+{
+  int i;
+  kum_sd_file *file = mrb_data_check_get_ptr(mrb, self, &kum_sd_file_data_type);
+  kum_sd_header start_header[1], end_header[1];
+  mrb_value base_time;
+  mrb_value argv[2];
+  mrb_value block;
+  mrb_bool block_given;
+  mrb_int sample_number;
+  mrb_int start_offset, end_offset;
+
+  char buffer[512];
+
+  channel channels[N_CHANNELS];
+
+  mrb_get_args(mrb, "|&?", &block, &block_given);
+  if (!block_given) return mrb_nil_value();
+
+  if (!file && !file->f) mrb_raise(mrb, E_RUNTIME_ERROR, "File already closed");
+
+  /* Rewind */
+  if (fseek(file->f, 0, SEEK_SET) == -1) mrb_raise(mrb, E_RUNTIME_ERROR, "Seek failed");
+  file->pos = 0;
+
+  /* Read headers */
+  if (!fread(buffer, 512, 1, file->f)) IO_ERROR(" (Start Header)");\
+  file->pos += 512;
+  if (kum_sd_header_read(start_header, buffer))
+    mrb_raise(mrb, E_EXCEPTION, "Malformed start header");
+  if (!fread(buffer, 512, 1, file->f)) IO_ERROR(" (End Header)");\
+  file->pos += 512;
+  if (kum_sd_header_read(end_header, buffer))
+    mrb_raise(mrb, E_EXCEPTION, "Malformed end header");
+
+  /* Calculate base time */
+  if (bcd_valid((char *) start_header->start_time)) {
+    base_time = mrb_funcall(mrb, mrb_obj_value(mrb_class_get(mrb, "Time")), "utc", 6,
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_YEAR]) + 2000),
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_MONTH])),
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_DAY])),
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_HOUR])),
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_MINUTE])),
+      mrb_fixnum_value(bcd_int(start_header->start_time[BCD_SECOND])));
+  } else {
+    mrb_raise(mrb, E_EXCEPTION, "Invalid start time");
+  }
+
+  /* Initialize the channels */
+  for (i = 0; i < N_CHANNELS; ++i) {
+    channels[i].mrb = mrb;
+    channels[i].block = block;
+    channels[i].sample_buffer = mrb_sample_buffer_new_zero(mrb, BUFFER_LEN, 0);
+    channels[i].b = mrb_sample_buffer_check(mrb, channels[i].sample_buffer);
+    channels[i].pos = 0;
+    if (i < start_header->channel_count) {
+      channels[i].b->shared->channel = mrb_str_new_cstr(mrb, (char *) start_header->channel_names[i]);
+    }
+  }
+
+  start_offset = (mrb_int) start_header->address * 512;
+  end_offset = (mrb_int) end_header->address * 512;
+
+  /* Go to data */
+  if (fseek(file->f, start_offset, SEEK_SET) == -1) mrb_raise(mrb, E_RUNTIME_ERROR, "Seek failed");
+  file->pos = start_offset;
+
+  sample_number = 0;
+
+  while (file->pos < end_offset) {
+    /* Read a frame */
+    READ(4, 0);
+    if (ld_i32_be(buffer) % 2) {
+      /* Control frame */
+      READ(12, 4);
+      switch (ld_i32_be(buffer)) {
+      case 1: /* Timestamp */
+        i = mrb_gc_arena_save(mrb);
+        argv[0] = mrb_fixnum_value(sample_number);
+        argv[1] = mrb_funcall(mrb, base_time, "+", 1, mrb_float_value(mrb, ld_i32_be(buffer + 4)));
+        mrb_yield(mrb, block, mrb_obj_new(mrb, mrb_class_get(mrb, "SampleTimestamp"), 2, argv));
+        mrb_gc_arena_restore(mrb, i);
+        break;
+      case 7: /* Lost Frames */
+        for (i = 0; i < N_CHANNELS; ++i) {
+          channel_flush(&channels[i]);
+        }
+        sample_number += ld_u32_be(buffer + 10);
+        break;
+      case 13: /* End */
+        goto end;
+      case 15: /* Frame Number */
+        if (sample_number != ld_u64_be(buffer + 4)) {
+          for (i = 0; i < N_CHANNELS; ++i) {
+            channel_flush(&channels[i]);
+          }
+          sample_number = ld_u64_be(buffer + 4);
+        }
+        break;
+      default:
+        break;
+      }
+    } else {
+      /* Data frame */
+      if (start_header->channel_count > 1) {
+        READ(4 * (start_header->channel_count - 1), 4);
+      }
+      for (i = 0; i < start_header->channel_count; ++i) {
+        channel_push(&channels[i], ld_i32_be(buffer + 4 * i) * SCALE);
+      }
+      sample_number += 1;
+    }
+  }
+end:
+  /* Flush remaining samples. */
+  for (i = 0; i < N_CHANNELS; ++i) {
+    channel_flush(&channels[i]);
+  }
+  return self;
+}
+
 void mrb_mruby_kumsd_gem_init(mrb_state* mrb)
 {
   struct RClass *kumsd, *kumsdfile;
@@ -374,6 +544,7 @@ void mrb_mruby_kumsd_gem_init(mrb_state* mrb)
   mrb_define_method(mrb, kumsdfile, "base_time=", mrb_kum_sd_file_base_time_set, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, kumsdfile, "last_address", mrb_kum_sd_file_last_address, MRB_ARGS_NONE());
   mrb_define_method(mrb, kumsdfile, "last_address=", mrb_kum_sd_file_last_address_set, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, kumsdfile, "process", mrb_kum_sd_file_process, MRB_ARGS_BLOCK());
 }
 
 void mrb_mruby_kumsd_gem_final(mrb_state* mrb)

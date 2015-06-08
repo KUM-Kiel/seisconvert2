@@ -12,6 +12,7 @@ MRuby::Build.new do |conf|
 
   # include the default GEMs
   conf.gembox 'default'
+  conf.gem 'mruby-sample-buffer'
   conf.gem 'mruby-kumsd'
   conf.gem 'mruby-seed'
   #conf.gem '../mruby-hexdump'
