@@ -11,7 +11,7 @@
 #include "kum_sd.h"
 #include "number.h"
 
-#define MRB_LARGE_INT(n) (((n) > MRB_INT_MAX || (n) < MRB_INT_MIN) ? mrb_float_value(mrb, n) : mrb_fixnum_value(n))
+#define MRB_LARGE_INT(n) mrb_fixnum_value(n)
 
 #define C_OBJECT (mrb->object_class)
 #define C_KUM_SD (mrb_module_get(mrb, "KumSd"))
@@ -97,7 +97,7 @@ static mrb_value parse_header(mrb_state *mrb, mrb_value self)
   mrb_hash_set(mrb, hash, mrb_symbol_value(mrb_intern_lit(mrb, "rtc_id")), mrb_str_new_cstr(mrb, (char *) header->rtc_id));
   channels = mrb_ary_new_capa(mrb, header->channel_count);
   for (i = 0; i < header->channel_count; ++i) {
-    mrb_ary_push(mrb, channels, mrb_str_new_cstr(mrb, (char *) header->channel_names[i]));
+    mrb_ary_push(mrb, channels, mrb_symbol_value(mrb_intern_cstr(mrb, (char *) header->channel_names[i])));
   }
   mrb_hash_set(mrb, hash, mrb_symbol_value(mrb_intern_lit(mrb, "channels")), channels);
   mrb_hash_set(mrb, hash, mrb_symbol_value(mrb_intern_lit(mrb, "comment")), mrb_str_new_cstr(mrb, (char *) header->comment));
@@ -457,7 +457,7 @@ static mrb_value mrb_kum_sd_file_process(mrb_state *mrb, mrb_value self)
     channels[i].b = mrb_sample_buffer_check(mrb, channels[i].sample_buffer);
     channels[i].pos = 0;
     if (i < start_header->channel_count) {
-      channels[i].b->shared->channel = mrb_str_new_cstr(mrb, (char *) start_header->channel_names[i]);
+      channels[i].b->shared->channel = mrb_symbol_value(mrb_intern_cstr(mrb, (char *) start_header->channel_names[i]));
     }
   }
 

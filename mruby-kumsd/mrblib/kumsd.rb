@@ -3,7 +3,7 @@ module KumSd
   class File
     attr_reader :start_address, :end_address, :start_time, :end_time
     attr_reader :sync_time, :sync_time_skew, :skew_time, :skew_time_skew, :skew
-    attr_reader :channels, :sample_rate, :recorder_id, :rtc_id, :comment
+    attr_reader :channels, :sample_rate, :frame_count, :recorder_id, :rtc_id, :comment
 
     # Open the device file named +device+.
     # If it is just a name like +sdb+, +/dev/device+ will also be checked,
@@ -50,6 +50,7 @@ module KumSd
 
       @channels = start_header[:channels]
       @sample_rate = start_header[:sample_rate]
+      @frame_count = end_header[:written_samples]
 
       @file.channel_count = @channels.length
       @file.base_time = @start_time
