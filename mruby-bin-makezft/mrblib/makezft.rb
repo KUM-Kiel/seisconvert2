@@ -101,17 +101,34 @@ class MakeZft
         ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
 
         [
+          "Creating #{logfilename}",
           "Creating #{edname}",
           "============================================="
         ].each{|s| log s}
 
         sd.channels.each_with_index do |c, i|
-          zft.add_channel c,
-            rate: sd.sample_rate,
-            start_time: start_time,
-            channel_number: i + 1,
-            channel_count: sd.channels.length,
-            frame_count: sd.frame_count
+          if sd.skew
+            zft.add_channel c,
+              rate: sd.sample_rate,
+              start_time: start_time,
+              end_time: sd.end_time,
+              sync_time: sd.sync_time,
+              skew_time: sd.skew_time,
+              skew: sd.skew_time_skew,
+              channel_number: i + 1,
+              channel_count: sd.channels.length,
+              frame_count: sd.frame_count,
+              comment: sd.comment
+          else
+            zft.add_channel c,
+              rate: sd.sample_rate,
+              start_time: start_time,
+              end_time: sd.end_time,
+              channel_number: i + 1,
+              channel_count: sd.channels.length,
+              frame_count: sd.frame_count,
+              comment: sd.comment
+          end
         end
 
         percent = 0

@@ -147,6 +147,7 @@ class Makeseed
         ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
 
         [
+          "Creating #{logfilename}",
           "Creating #{edname}",
           "============================================="
         ].each{|s| log s}

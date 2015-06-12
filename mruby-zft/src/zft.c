@@ -4,6 +4,7 @@
 #include <mruby/class.h>
 #include <mruby/data.h>
 #include <mruby/hash.h>
+#include <mruby/string.h>
 #include <sample_buffer.h>
 #include <stdio.h>
 #include <string.h>
@@ -142,7 +143,7 @@ static mrb_value zft_add_channel(mrb_state *mrb, mrb_value self)
   char header[3600], buffer[128];
   mrb_value v;
   double x;
-  int i;
+  int i, j, c;
 
   if (file->headers_written)
     mrb_raise(mrb, E_RUNTIME_ERROR, "Headers have already been written");
@@ -183,6 +184,57 @@ static mrb_value zft_add_channel(mrb_state *mrb, mrb_value self)
         mrb_fixnum(mrb_funcall(mrb, v, "yday", 0))) * 2048;
       st_u32_be(header + 3200, x);
     }
+    v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "end_time")));
+    if (mrb_obj_is_kind_of(mrb, v, mrb_class_get(mrb, "Time"))) {
+      i = 0;
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%04d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "year", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%03d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "yday", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "hour", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "min", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "sec", 0)));
+      memcpy(header + 1951, buffer, i);
+    }
+    v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "sync_time")));
+    if (mrb_obj_is_kind_of(mrb, v, mrb_class_get(mrb, "Time"))) {
+      i = 0;
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%04d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "year", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%03d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "yday", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "hour", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "min", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "sec", 0)));
+      memcpy(header + 2031, buffer, i);
+    }
+    v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "skew_time")));
+    if (mrb_obj_is_kind_of(mrb, v, mrb_class_get(mrb, "Time"))) {
+      i = 0;
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%04d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "year", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%03d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "yday", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "hour", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "min", 0)));
+      i += snprintf(buffer + i, sizeof(buffer) - i, "%02d.",
+        (int) mrb_fixnum(mrb_funcall(mrb, v, "sec", 0)));
+      memcpy(header + 2111, buffer, i);
+    }
+    v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "skew")));
+    if (mrb_fixnum_p(v)) {
+      x = mrb_fixnum(v);
+      i = snprintf(buffer, sizeof(buffer), "%08d", (int) x);
+      memcpy(header + 2191, buffer, i);
+    }
     v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "channel_number")));
     if (mrb_fixnum_p(v)) {
       x = mrb_fixnum(v);
@@ -200,6 +252,20 @@ static mrb_value zft_add_channel(mrb_state *mrb, mrb_value self)
     if (mrb_fixnum_p(v)) {
       x = mrb_fixnum(v);
       st_u32_be(header + 3220, x);
+    }
+    v = mrb_hash_get(mrb, options, mrb_symbol_value(mrb_intern_lit(mrb, "comment")));
+    if (mrb_obj_is_kind_of(mrb, v, mrb->string_class)) {
+      j = 4;
+      for (i = 0; i < RSTRING_LEN(v); ++i) {
+        if (j >= 1600) break;
+        if (j % 80 == 0) j += 4;
+        c = (unsigned char) RSTRING_PTR(v)[i];
+        if (c == '\n') {
+          j = ((j - 1) / 80) * 80 + 84;
+        } else if (c >= ' ') {
+          header[j++] = c;
+        }
+      }
     }
   }
 
