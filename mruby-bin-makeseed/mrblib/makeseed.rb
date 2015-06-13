@@ -130,7 +130,7 @@ class Makeseed
           "============================================="
         ].each{|s| log s} if sd.skew
 
-        channels = sd.channels.map do |name|
+        channels = sd.channels.map(&:to_s).map do |name|
           @channel_name = name
           fn = filename '%R/%T/%C.seed'
           mkdir_p File.dirname fn
