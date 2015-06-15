@@ -2,7 +2,11 @@ class Makeseed
   class Channel
     B1k = Seed::Blockette1000.new.to_s
 
-    attr_accessor :time
+    attr_reader :time
+    def time= t
+      @time = t
+      @time_offset = 0
+    end
 
     def initialize name, rate, file, skew = nil
       @name = name
@@ -23,16 +27,17 @@ class Makeseed
         r.sequence_number = @next_sequence_number
         r.sample_rate = @sample_rate
         r.add_blockette B1k
+        t = @time + @time_offset
         if @skew
-          r.set_start_time @time, @skew.correction(@time)
+          r.set_start_time t, @skew.correction(t)
         else
-          r.set_start_time @time
+          r.set_start_time t
         end
         @record = r
         @next_sequence_number += 1
       end
       @record << i
-      @time += @sample_time
+      @time_offset += @sample_time
       if @record.full
         @file.write @record.to_s
         @record = nil
@@ -44,7 +49,7 @@ class Makeseed
         @file.write @record.to_s
       end
       @record = nil
-      @time += n * @sample_time
+      @time_offset += n * @sample_time
     end
 
     def done

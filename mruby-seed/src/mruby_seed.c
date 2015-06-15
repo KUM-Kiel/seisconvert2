@@ -26,7 +26,7 @@ static seed_btime_t mrb_time2btime(mrb_state *mrb, mrb_value t)
   i = mrb_funcall(mrb, tt, "sec", 0, 0);
   bt.second = mrb_fixnum(i);
   i = mrb_funcall(mrb, tt, "usec", 0, 0);
-  bt.tenth_ms = mrb_fixnum(i) / 100;
+  bt.tenth_ms = (mrb_fixnum(i) + 50) / 100;
   return bt;
 }
 
