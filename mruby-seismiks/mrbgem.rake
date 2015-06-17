@@ -8,9 +8,18 @@ MRuby::Gem::Specification.new('mruby-seismiks') do |spec|
 
   spec.add_dependency 'mruby-sample-buffer'
 
-  # sql = File.open('seismiks_format_1.sql').read
-  # File.open('seismiks_format_1.h', 'w') do |f|
-  #   f.puts "static const char *seismiks_format_1_sql = #{sql.inspect};"
-  #   f.puts "static const int seismiks_format_1_sql_size = #{sql.length};"
-  # end
+  sql = "#{dir}/src/seismiks_format_1.sql"
+  h = "#{build_dir}/src/seismiks_format_1.h"
+
+  spec.cc.include_paths << "#{build_dir}/src"
+
+  directory "#{build_dir}/src"
+  file "#{build_dir}/src/seismiks.o" => ["#{dir}/src/seismiks.c", h]
+  file h => [sql, "#{build_dir}/src"] do
+    content = File.open(sql).read
+    File.open(h, 'w') do |f|
+      f.puts "static const char *seismiks_format_1_sql = #{content.inspect};"
+      f.puts "static const int seismiks_format_1_sql_size = #{content.length};"
+    end
+  end
 end
