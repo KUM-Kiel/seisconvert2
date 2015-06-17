@@ -34,12 +34,13 @@ MRB_API mrb_sample_buffer *mrb_sample_buffer_check(mrb_state *mrb, mrb_value b);
 MRB_API mrb_value mrb_sample_buffer_new(mrb_state *mrb, mrb_int len, mrb_int offset, const mrb_sample *data);
 MRB_API mrb_value mrb_sample_buffer_new_zero(mrb_state *mrb, mrb_int len, mrb_int offset);
 MRB_API mrb_value mrb_sample_buffer_new_uninitialized(mrb_state *mrb, mrb_int len, mrb_int offset);
-MRB_API mrb_value mrb_sample_buffer_slice(mrb_state *mrb, mrb_value sample_buffer, mrb_int offset, mrb_int len);
+MRB_API mrb_value mrb_sample_buffer_slice(mrb_state *mrb, mrb_value sample_buffer, mrb_int len, mrb_int offset);
 
 static inline mrb_int
 mrb_sample_buffer_len(mrb_state *mrb, mrb_value sample_buffer)
 {
   mrb_sample_buffer *b = mrb_sample_buffer_check(mrb, sample_buffer);
+  if (!b) mrb_raise(mrb, E_RUNTIME_ERROR, "Not a SampleBuffer");
   return MRB_SAMPLE_BUFFER_LEN(b);
 }
 
@@ -47,6 +48,7 @@ static inline mrb_int
 mrb_sample_buffer_offset(mrb_state *mrb, mrb_value sample_buffer)
 {
   mrb_sample_buffer *b = mrb_sample_buffer_check(mrb, sample_buffer);
+  if (!b) mrb_raise(mrb, E_RUNTIME_ERROR, "Not a SampleBuffer");
   return MRB_SAMPLE_BUFFER_OFFSET(b);
 }
 

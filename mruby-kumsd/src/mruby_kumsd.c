@@ -384,7 +384,7 @@ static inline void channel_flush(channel *c)
   int i;
   if (c->pos > 0) {
     i = mrb_gc_arena_save(c->mrb);
-    mrb_yield(c->mrb, c->block, mrb_sample_buffer_slice(c->mrb, c->sample_buffer, 0, c->pos));
+    mrb_yield(c->mrb, c->block, mrb_sample_buffer_slice(c->mrb, c->sample_buffer, c->pos, 0));
     c->pos = 0;
     mrb_gc_arena_restore(c->mrb, i);
   }

@@ -1,8 +1,10 @@
+#include <math.h>
 #include <mruby.h>
 #include <mruby/class.h>
 #include <mruby/data.h>
 #include <stdio.h>
 #include <string.h>
+#include <sample_buffer.h>
 
 #include "number.h"
 #include "seed.h"
@@ -194,6 +196,45 @@ static mrb_value mrb_data_record_push(mrb_state *mrb, mrb_value self)
   return self;
 }
 
+#define SCALE (2147483648.0)
+
+static mrb_value mrb_data_record_push_sample_buffer(mrb_state *mrb, mrb_value self)
+{
+  data_record *r = DATA_CHECK_GET_PTR(mrb, self, &data_record_type, data_record);
+  mrb_value buffer_value;
+  mrb_sample_buffer *buffer;
+  mrb_int i, l;
+  mrb_int m = (r->size - r->header.data_offset) / 4;
+  mrb_sample x;
+
+  mrb_get_args(mrb, "o", &buffer_value);
+  if (!(buffer = mrb_sample_buffer_check(mrb, buffer_value)))
+    mrb_raise(mrb, E_RANGE_ERROR, "Not a SampleBuffer");
+
+  if (r->header.num_samples >= m)
+    return mrb_fixnum_value(0);
+
+  l = MRB_SAMPLE_BUFFER_LEN(buffer);
+
+  i = 0;
+  while (r->header.num_samples < m && i < l) {
+    x = MRB_SAMPLE_BUFFER_DATA(buffer)[i] * SCALE;
+    if (x >= SCALE) {
+      st_i32_be(r->data + r->header.data_offset + r->header.num_samples * 4, INT32_MAX);
+    } else if (x < -SCALE) {
+      st_i32_be(r->data + r->header.data_offset + r->header.num_samples * 4, INT32_MIN);
+    } else {
+      st_i32_be(r->data + r->header.data_offset + r->header.num_samples * 4, lround(x));
+    }
+    r->header.num_samples += 1;
+    i += 1;
+  }
+
+  st_u16_be(r->data + 30, r->header.num_samples);
+
+  return mrb_fixnum_value(i);
+}
+
 static mrb_value mrb_data_record_full(mrb_state *mrb, mrb_value self)
 {
   data_record *r = DATA_CHECK_GET_PTR(mrb, self, &data_record_type, data_record);
@@ -224,6 +265,7 @@ void mrb_mruby_seed_gem_init(mrb_state* mrb)
   mrb_define_method(mrb, data_record_class, "push", mrb_data_record_push, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, data_record_class, "<<", mrb_data_record_push, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, data_record_class, "full", mrb_data_record_full, MRB_ARGS_NONE());
+  mrb_define_method(mrb, data_record_class, "push_sample_buffer", mrb_data_record_push_sample_buffer, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, data_record_class, "to_s", mrb_data_record_to_s, MRB_ARGS_NONE());
 }
 

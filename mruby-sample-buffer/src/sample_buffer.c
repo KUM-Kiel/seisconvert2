@@ -144,7 +144,7 @@ MRB_API mrb_value mrb_sample_buffer_new(mrb_state *mrb, mrb_int len, mrb_int off
   return buf;
 }
 
-MRB_API mrb_value mrb_sample_buffer_slice(mrb_state *mrb, mrb_value sample_buffer, mrb_int offset, mrb_int len)
+MRB_API mrb_value mrb_sample_buffer_slice(mrb_state *mrb, mrb_value sample_buffer, mrb_int len, mrb_int offset)
 {
   mrb_value buf;
   mrb_sample_buffer *b = 0, *other = 0;

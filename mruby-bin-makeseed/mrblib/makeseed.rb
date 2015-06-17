@@ -44,6 +44,36 @@ class Makeseed
       end
     end
 
+    def sample_buffer b
+      return unless @time
+      n = 0
+      while n < b.length
+        if not @record
+          r = Seed::DataRecord.new
+          r.channel_name = @name
+          r.sequence_number = @next_sequence_number
+          r.sample_rate = @sample_rate
+          r.add_blockette B1k
+          t = @time + @time_offset
+          if @skew
+            r.set_start_time t, @skew.correction(t)
+          else
+            r.set_start_time t
+          end
+          @record = r
+          @next_sequence_number += 1
+        end
+        x = b.slice(b.length - n, n)
+        i = @record.push_sample_buffer(x)
+        @time_offset += i * @sample_time
+        n += i
+        if @record.full
+          @file.write @record.to_s
+          @record = nil
+        end
+      end
+    end
+
     def lost n
       if @record
         @file.write @record.to_s
@@ -135,62 +165,102 @@ class Makeseed
           "============================================="
         ].each{|s| log s} if sd.skew
 
-        channels = sd.channels.map(&:to_s).map do |name|
-          @channel_name = name
-          fn = filename '%R/%T/%C.seed'
-          mkdir_p File.dirname fn
-          c = Channel.new name, sd.sample_rate, File.open(fn, "wb"), sd.skew
-          log "Creating #{fn}"
-          c
-        end
-        log "============================================="
+        log "Creating #{logfilename}"
 
-        edname = filename '%R/%T/engineeringdata.csv'
-        mkdir_p File.dirname edname
-        ed = File.open(edname, "wb")
-        edata = {vbat: 0, humi: 0, temp: 0}
-        ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
+        if !options[:fast]
+          edname = filename '%R/%T/engineeringdata.csv'
+          mkdir_p File.dirname edname
+          ed = File.open(edname, "wb")
+          edata = {vbat: 0, humi: 0, temp: 0}
+          ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
 
-        [
-          "Creating #{logfilename}",
-          "Creating #{edname}",
-          "============================================="
-        ].each{|s| log s}
+          [
+            "Creating #{edname}",
+            "============================================="
+          ].each{|s| log s}
 
-        percent = 0
-        print_percent 0, false
-        sd.each_frame do |f|
-          if f.is_a? KumSd::ControlFrame
-            if f.is_a? KumSd::Timestamp
-              channels.each do |c|
-                c.time = f.time
+          channels = sd.channels.map(&:to_s).map do |name|
+            @channel_name = name
+            fn = filename '%R/%T/%C.seed'
+            mkdir_p File.dirname fn
+            c = Channel.new name, sd.sample_rate, File.open(fn, "wb"), sd.skew
+            log "Creating #{fn}"
+            c
+          end
+          log "============================================="
+
+          percent = 0
+          print_percent 0, false
+
+          sd.each_frame do |f|
+            if f.is_a? KumSd::ControlFrame
+              if f.is_a? KumSd::Timestamp
+                channels.each do |c|
+                  c.time = f.time
+                end
+              elsif f.is_a? KumSd::LostFrames
+                @logfile.puts "#{time_format_usec(channels[0].time)}: #{f.lost} lost frames."
+                channels.each do |c|
+                  c.lost f.lost
+                end
+              elsif f.is_a? KumSd::VoltageHumidity
+                edata[:vbat] = f.voltage
+                edata[:humi] = f.humidity
+              elsif f.is_a? KumSd::Temperature
+                edata[:temp] = f.temperature
+                ed.puts "#{channels[0].time.to_i};#{edata[:vbat]};#{edata[:humi]};#{edata[:temp]}"
               end
-            elsif f.is_a? KumSd::LostFrames
-              @logfile.puts "#{time_format_usec(channels[0].time)}: #{f.lost} lost frames."
-              channels.each do |c|
-                c.lost f.lost
+            else
+              (0...f.length).each do |i|
+                channels[i].sample f[i]
               end
-            elsif f.is_a? KumSd::VoltageHumidity
-              edata[:vbat] = f.voltage
-              edata[:humi] = f.humidity
-            elsif f.is_a? KumSd::Temperature
-              edata[:temp] = f.temperature
-              ed.puts "#{channels[0].time.to_i};#{edata[:vbat]};#{edata[:humi]};#{edata[:temp]}"
             end
-          else
-            (0...f.length).each do |i|
-              channels[i].sample f[i]
+            if percent != sd.percent
+              percent = sd.percent
+              print_percent percent, false
             end
           end
-          if percent != sd.percent
-            percent = sd.percent
-            print_percent percent, false
+          channels.each do |c|
+            c.done
           end
+          print_percent 100
+        else
+          log "============================================="
+
+          channels = {}
+          sd.channels.each do |name|
+            @channel_name = name.to_s
+            fn = filename '%R/%T/%C.seed'
+            mkdir_p File.dirname fn
+            channels[name] = Channel.new name.to_s, sd.sample_rate, File.open(fn, "wb"), sd.skew
+            log "Creating #{fn}"
+          end
+          log "============================================="
+
+          percent = 0
+          print_percent 0, false
+
+          sd.process do |f|
+            if f.is_a? SampleTimestamp
+              if f.sample_number == 0
+                channels.each_value do |c|
+                  c.time = f.time
+                end
+              end
+            elsif f.is_a? SampleBuffer
+              channels[f.channel].sample_buffer(f)
+            end
+            if percent != sd.percent
+              percent = sd.percent
+              print_percent percent, false
+            end
+          end
+
+          channels.each_value do |c|
+            c.done
+          end
+          print_percent 100
         end
-        channels.each do |c|
-          c.done
-        end
-        print_percent 100
       else
         puts 'Usage: makeseed /dev/sdX'
       end
