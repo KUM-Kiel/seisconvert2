@@ -119,6 +119,25 @@ class Makeseed
     '%04d-%02d-%02d %02d:%02d:%02d.%06d UTC' % [t.year, t.month, t.day, t.hour, t.min, t.sec, t.usec]
   end
 
+  def duration_format d
+    sec = d % 60
+    d = (d - sec) / 60
+    min = d % 60
+    d = (d - min) / 60
+    hours = d % 24
+    d = (d - hours) / 24
+    days = d
+    if days == 0 && hours == 0 && min == 0
+      '%ds' % [sec]
+    elsif days == 0 && hours == 0
+      '%dm %ds' % [min, sec]
+    elsif days == 0
+      '%dh %dm %ds' % [hours, min, sec]
+    else
+      '%dd %dh %dm %ds' % [days, hours, min, sec]
+    end
+  end
+
   def log s
     puts(s)
     @logfile.puts(s) if @logfile
@@ -149,18 +168,18 @@ class Makeseed
         [
           "RTC Report",
           "=============================================",
-          "      Sync Time: #{sd.sync_time.utc}",
+          "      Sync Time: #{time_format sd.sync_time.utc}",
           "    Sync Offset: #{'%+d µs' % [sd.sync_time_skew * 1_000_000]}",
-          "      Skew Time: #{sd.skew_time.utc}",
+          "      Skew Time: #{time_format sd.skew_time.utc}",
           "    Skew Offset: #{'%+d µs' % [sd.skew_time_skew * 1_000_000]}",
           "=============================================",
           "    Clock Drift: #{'%+.3f ppm' % [sd.skew.ppm]}",
-          "   Current Time: #{now.utc}",
+          "   Current Time: #{time_format now.utc}",
           " Current Offset: #{'%+d µs' % [sd.skew.correction(now) * 1_000_000]}",
           "=============================================",
-          "     Start Time: #{sd.start_time}",
+          "     Start Time: #{time_format sd.start_time}",
           "   Start Offset: #{'%+d µs' % [sd.skew.correction(sd.start_time) * 1_000_000]}",
-          "       End Time: #{sd.end_time}",
+          "       End Time: #{time_format sd.end_time}",
           "     End Offset: #{'%+d µs' % [sd.skew.correction(sd.end_time) * 1_000_000]}",
           "============================================="
         ].each{|s| log s} if sd.skew

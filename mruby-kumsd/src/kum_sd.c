@@ -5,7 +5,8 @@
 
 #define X ((uint8_t *) x)
 #define SX ((char *) x)
-#define ADV_O(a) o += (a); if (o >= 512) return -1;
+#define ADV_O(a) o += (a); if (o >= 512) return -1
+#define SKIP0() while (!X[o]) { ADV_O(1); }
 
 int kum_sd_header_read(kum_sd_header *header, const void *x)
 {
@@ -80,6 +81,7 @@ int kum_sd_header_read(kum_sd_header *header, const void *x)
   if (n) memcpy(header->recorder_id, X + o, n);
   memset(header->recorder_id + n, 0, sizeof(header->recorder_id) - n);
   ADV_O(n + 1);
+  SKIP0();
   /* RTC ID */
   if (memcmp(X + o, "rtci", 4)) return -1;
   ADV_O(4);
@@ -88,6 +90,7 @@ int kum_sd_header_read(kum_sd_header *header, const void *x)
   if (n) memcpy(header->rtc_id, X + o, n);
   memset(header->rtc_id + n, 0, sizeof(header->rtc_id) - n);
   ADV_O(n + 1);
+  SKIP0();
   /* Latitude */
   if (memcmp(X + o, "lati", 4)) return -1;
   ADV_O(4);
@@ -96,6 +99,7 @@ int kum_sd_header_read(kum_sd_header *header, const void *x)
   if (n) memcpy(header->latitude, X + o, n);
   memset(header->latitude + n, 0, sizeof(header->latitude) - n);
   ADV_O(n + 1);
+  SKIP0();
   /* Longitude */
   if (memcmp(X + o, "logi", 4)) return -1;
   ADV_O(4);
@@ -104,6 +108,7 @@ int kum_sd_header_read(kum_sd_header *header, const void *x)
   if (n) memcpy(header->longitude, X + o, n);
   memset(header->longitude + n, 0, sizeof(header->longitude) - n);
   ADV_O(n + 1);
+  SKIP0();
   /* Channel Names */
   if (memcmp(X + o, "alia", 4)) return -1;
   ADV_O(4);
@@ -114,6 +119,7 @@ int kum_sd_header_read(kum_sd_header *header, const void *x)
     memset(header->channel_names[i] + n, 0, sizeof(header->channel_names[i]) - n);
     ADV_O(n + 1);
   }
+  SKIP0();
   /* Comment */
   if (memcmp(X + o, "cmnt", 4)) return -1;
   ADV_O(4);

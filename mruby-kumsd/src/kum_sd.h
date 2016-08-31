@@ -18,7 +18,7 @@ typedef struct {
   uint64_t written_samples;
   uint64_t lost_samples;
   int channel_count;
-  int gain[KUM_SD_MAX_CHANNEL_COUNT];
+  uint8_t gain[KUM_SD_MAX_CHANNEL_COUNT];
   int bit_depth;
   uint8_t recorder_id[32];
   uint8_t rtc_id[32];

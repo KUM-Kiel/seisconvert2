@@ -160,8 +160,6 @@ class MakeZft
         end
         zft.close
         print_percent 100
-      else
-        puts 'Usage: makeseed /dev/sdX'
       end
     rescue Exception => e
       puts e.inspect#.message

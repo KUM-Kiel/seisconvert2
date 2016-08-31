@@ -151,6 +151,16 @@ static mrb_value seismiks_get_station(mrb_state *mrb, mrb_value self)
   }
 }
 
+static mrb_value seismics_import_kumsd(mrb_state *mrb, mrb_value self)
+{
+  sqlite3 *file = seismiks_check(mrb, self);
+
+  char *filename = 0;
+  mrb_get_args("z", &filename);
+
+  return self;
+}
+
 void mrb_mruby_seismiks_gem_init(mrb_state *mrb)
 {
   struct RClass *seismiks;
@@ -160,6 +170,7 @@ void mrb_mruby_seismiks_gem_init(mrb_state *mrb)
   mrb_define_method(mrb, seismiks, "close", seismiks_close, MRB_ARGS_NONE());
   mrb_define_method(mrb, seismiks, "create_station", seismiks_create_station, MRB_ARGS_ARG(1, 1));
   mrb_define_method(mrb, seismiks, "get_station", seismiks_get_station, MRB_ARGS_ARG(1, 1));
+  mrb_define_method(mrb, seismiks, "import_kumsd", seismics_import_kumsd, MRB_ARGS_REQ(1));
 }
 
 void mrb_mruby_seismiks_gem_final(mrb_state *mrb)
