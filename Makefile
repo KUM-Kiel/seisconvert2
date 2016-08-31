@@ -18,5 +18,6 @@ clean :
 .PHONY : clean
 
 install : all
-	install -m 4755 bin/makeseed bin/makezft $(PREFIX)/bin
+	mkdir -p "$(PREFIX)/bin"
+	install -m 4755 bin/makeseed bin/makezft "$(PREFIX)/bin"
 .PHONY : install
