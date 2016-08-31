@@ -20,11 +20,13 @@ static void help(const char *x)
     "\n"
     "# Options\n"
     "\n"
+#if 0
     "  -f, --fast\n"
     "  Use a much faster conversion. Time needed is greatly reduced, but this mode\n"
     "  is experimental and no engineeringdata file will be created.\n"
     "  This mode is disabled by default.\n"
     "\n"
+#endif
     "  -e, --engineeringdata\n"
     "  Create an engineeringdata file. This turns off fast mode.\n"
     "  This is on by default.\n"
