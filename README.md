@@ -14,7 +14,7 @@ For other systems the dependencies must be installed by other means.
 ```text
 $ sudo apt-get update
 $ sudo apt-get install git ruby bison build-essential
-$ git clone https://github.com/KUM-Kiel/seisconvert2.git
+$ git clone --recursive https://github.com/KUM-Kiel/seisconvert2.git
 $ cd seisconvert2
 $ make
 $ sudo make install
