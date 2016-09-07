@@ -151,8 +151,8 @@ class Makeseed
         now = Time.now
 
         logfilename = filename '%R/%T/events.txt'
-        mkdir_p File.dirname logfilename
-        @logfile = File.open(logfilename, "wb")
+        mkdir_p_unprivileged File.dirname logfilename
+        @logfile = open_unprivileged(logfilename, "wb")
 
         [
           "Processing '#{file}'",
@@ -188,8 +188,8 @@ class Makeseed
 
         if !options[:fast]
           edname = filename '%R/%T/engineeringdata.csv'
-          mkdir_p File.dirname edname
-          ed = File.open(edname, "wb")
+          mkdir_p_unprivileged File.dirname edname
+          ed = open_unprivileged(edname, "wb")
           edata = {vbat: 0, humi: 0, temp: 0}
           ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
 
@@ -201,8 +201,8 @@ class Makeseed
           channels = sd.channels.map(&:to_s).map do |name|
             @channel_name = name
             fn = filename '%R/%T/%C.seed'
-            mkdir_p File.dirname fn
-            c = Channel.new name, sd.sample_rate, File.open(fn, "wb"), sd.skew
+            mkdir_p_unprivileged File.dirname fn
+            c = Channel.new name, sd.sample_rate, open_unprivileged(fn, "wb"), sd.skew
             log "Creating #{fn}"
             c
           end
@@ -250,8 +250,8 @@ class Makeseed
           sd.channels.each do |name|
             @channel_name = name.to_s
             fn = filename '%R/%T/%C.seed'
-            mkdir_p File.dirname fn
-            channels[name] = Channel.new name.to_s, sd.sample_rate, File.open(fn, "wb"), sd.skew
+            mkdir_p_unprivileged File.dirname fn
+            channels[name] = Channel.new name.to_s, sd.sample_rate, open_unprivileged(fn, "wb"), sd.skew
             log "Creating #{fn}"
           end
           log "============================================="

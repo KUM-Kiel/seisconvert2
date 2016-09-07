@@ -45,8 +45,8 @@ class MakeZft
         now = Time.now
 
         logfilename = filename '%R.%J.events.txt'
-        mkdir_p File.dirname logfilename
-        @logfile = File.open(logfilename, "wb")
+        mkdir_p_unprivileged File.dirname logfilename
+        @logfile = open_unprivileged(logfilename, "wb")
 
         [
           "Processing '#{file}'",
@@ -89,14 +89,14 @@ class MakeZft
         start_time = t
 
         fn = filename '%R.%J.zft'
-        mkdir_p File.dirname fn
+        mkdir_p_unprivileged File.dirname fn
         zft = Zft.new fn
         log "Creating #{fn}"
         log "============================================="
 
         edname = filename '%R.%J.engineeringdata.csv'
-        mkdir_p File.dirname edname
-        ed = File.open(edname, "wb")
+        mkdir_p_unprivileged File.dirname edname
+        ed = open_unprivileged(edname, "wb")
         edata = {vbat: 0, humi: 0, temp: 0}
         ed.puts "Unix Timestamp;Battery Voltage [V];Humidity [%];Temperature [°C]"
 
