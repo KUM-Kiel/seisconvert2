@@ -1,3 +1,8 @@
+# This repository is deprecated!
+
+Seisconvert 2 has been replaced by [6D6-Compat](https://github.com/KUM-Kiel/6d6-compat).
+Please use the newest version there!
+
 # Seisconvert 2
 
 This is *Seisconvert 2*, a collection of tools for reading and converting seismic formats.
